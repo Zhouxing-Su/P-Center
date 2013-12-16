@@ -22,6 +22,7 @@ return 0;
 #include <fstream>
 #include <vector>
 #include <set>
+#include <ctime>
 #include "Graph.h"
 #include "RangeRand.h"
 #include "RandSelect.h"
@@ -40,16 +41,16 @@ public:
 
     const int pnum;
 
-    PCenter( UndirectedGraph &ug, int pnum );
+    PCenter( UndirectedGraph &ug, int pnum, int maxIterCount );
     ~PCenter();
 
-    void solve( int maxIterCount );
-    void greedySolve( int maxIterCount );
+    void solve();
+    void greedySolve();
     bool check() const; // check the result by shortestDist
 
     void printResult( std::ostream &os ) const;
     static void initResultSheet( std::ofstream &csvFile );
-    void appendResultToSheet( const char *instanceFileName, std::ofstream &csvFile ) const;
+    void appendResultToSheet( const std::string &instanceFileName, std::ofstream &csvFile ) const;
 
 private:
     class CenterSwap
@@ -79,6 +80,7 @@ private:
     };
 
     typedef std::vector<ClosestCenterQueue> ClosestCenterTable;
+    typedef std::vector< std::vector<int> > TabuTable;
 
     void genInitSolution();
     void initClosestCenter( int firstCenter, int secondCenter );
@@ -100,7 +102,9 @@ private:
     UndirectedGraph graph;
     Graph::VertexSet center;
     ClosestCenterTable closestCenter;
+    TabuTable tabu;
 
+    int maxIterCount;
     Solution bestSolution;
     Timer timer;
 };

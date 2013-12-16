@@ -2,8 +2,9 @@
 
 using namespace std;
 
-PCenter::PCenter( UndirectedGraph &ug, int pn )
-: graph( ug ), pnum( pn ), closestCenter( graph.vertexAllocNum, ClosestCenterQueue() )
+PCenter::PCenter( UndirectedGraph &ug, int pn, int mic )
+: graph( ug ), pnum( pn ), closestCenter( ug.vertexAllocNum, ClosestCenterQueue() ),
+tabu( ug.vertexAllocNum, vector<int>( ug.vertexAllocNum, 0 ) ), maxIterCount( mic )
 {
     graph.getDistSeqTable();
 }
@@ -14,7 +15,7 @@ PCenter::~PCenter()
 }
 
 
-void PCenter::solve( int maxIterCount )
+void PCenter::solve()
 {
     genInitSolution();
 
@@ -34,15 +35,15 @@ void PCenter::solve( int maxIterCount )
                 // find the best swap between center i and non-center vertices
                 ClosestCenterTable tmpCCT( closestCenter );
                 addCenter( newCenter, tmpCCT );
-                Graph::Distance radiusAfterAdd = closestCenter[findFarthestVertex( tmpCCT )].dist[0];
+                Graph::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
                 // calculate new radius for removing each center
                 for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
                     // when *iter is removed
                     int removedCenter = *iter;
                     Graph::Distance radiusAfterRemove = radiusAfterAdd;
                     for (int k = graph.minVertexIndex; k <= graph.maxVertexIndex; k++) {
-                        if (closestCenter[k].center[0] == removedCenter) {
-                            Graph::Distance newDist = closestCenter[k].dist[1];
+                        if (tmpCCT[k].center[0] == removedCenter) {
+                            Graph::Distance newDist = tmpCCT[k].dist[1];
                             if (radiusAfterRemove < newDist) {
                                 radiusAfterRemove = newDist;
                             }
@@ -80,7 +81,7 @@ void PCenter::solve( int maxIterCount )
     }
 }
 
-void PCenter::greedySolve( int maxIterCount )
+void PCenter::greedySolve()
 {
     genInitSolution();
 
@@ -94,22 +95,22 @@ void PCenter::greedySolve( int maxIterCount )
         for (Graph::ArcSet::iterator iter = lsa.begin(); iter != lsa.end(); iter++) {
             int longestEnd = iter->endVertex;
             Graph::Distance longestDist = iter->dist;
-
+            // try each vertex whose distance to longestEnd is shorter than longestDist
             for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
                 int newCenter = graph.nthClosestVertex( longestEnd, i );
                 if (graph.distance( longestEnd, newCenter ) < longestDist) {
                     // find the best swap between center i and non-center vertices
                     ClosestCenterTable tmpCCT( closestCenter );
                     addCenter( newCenter, tmpCCT );
-                    Graph::Distance radiusAfterAdd = closestCenter[findFarthestVertex( tmpCCT )].dist[0];
+                    Graph::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
                     // calculate new radius for removing each center
                     for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
                         // when *iter is removed
                         int removedCenter = *iter;
                         Graph::Distance radiusAfterRemove = radiusAfterAdd;
                         for (int k = graph.minVertexIndex; k <= graph.maxVertexIndex; k++) {
-                            if (closestCenter[k].center[0] == removedCenter) {
-                                Graph::Distance newDist = closestCenter[k].dist[1];
+                            if (tmpCCT[k].center[0] == removedCenter) {
+                                Graph::Distance newDist = tmpCCT[k].dist[1];
                                 if (radiusAfterRemove < newDist) {
                                     radiusAfterRemove = newDist;
                                 }
@@ -150,7 +151,7 @@ void PCenter::greedySolve( int maxIterCount )
 
 bool PCenter::check() const
 {
-    for (int i = graph.minVertexIndex; i < graph.maxVertexIndex; i++) {
+    for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
         Graph::Distance minRadius = Graph::MAX_DISTANCE;
         for (Graph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
             if (minRadius > graph.distance( i, *iter )) {
@@ -173,18 +174,19 @@ void PCenter::printResult( ostream &os ) const
     for (Graph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
         os << *iter << "|";
     }
+    os << endl;
 }
 
 void PCenter::initResultSheet( std::ofstream &csvFile )
 {
-    csvFile << "Instance, " << "Duration, " << "IterCount, " << "ServingRadius, " << "Centers" << endl;
+    csvFile << "Date, Instance, TotalIter, Duration, IterCount, ServingRadius, Centers" << endl;
 }
 
-void PCenter::appendResultToSheet( const char *instanceFileName, ofstream &csvFile ) const
+void PCenter::appendResultToSheet( const string &instanceFileName, ofstream &csvFile ) const
 {
-    csvFile << instanceFileName << ", " << bestSolution.duration << ", "
-        << bestSolution.iterCount << ", " << bestSolution.serveRadius << ", ";
-    for (Graph::VertexSet::iterator iter = bestSolution.center.begin( ); iter != bestSolution.center.end( ); iter++) {
+    csvFile << Timer::getLocalTime() << ", " << instanceFileName << ", " << maxIterCount << ", "
+        << bestSolution.duration << ", " << bestSolution.iterCount << ", " << bestSolution.serveRadius << ", ";
+    for (Graph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
         csvFile << *iter << "|";
     }
     csvFile << endl;
@@ -228,7 +230,11 @@ void PCenter::genInitSolution()
     }
 
     // init the min max min serve radius
+    timer.record();
     bestSolution.serveRadius = closestCenter[findFarthestVertex( closestCenter )].dist[0];
+    bestSolution.center = center;
+    bestSolution.duration = timer.getDuration();
+    bestSolution.iterCount = 0;
 }
 
 void PCenter::initClosestCenter( int firstCenter, int secondCenter )
