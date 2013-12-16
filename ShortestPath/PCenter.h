@@ -100,7 +100,6 @@ private:
     UndirectedGraph graph;
     Graph::VertexSet center;
     ClosestCenterTable closestCenter;
-    Graph::Distance serveRadius;
 
     Solution bestSolution;
     Timer timer;

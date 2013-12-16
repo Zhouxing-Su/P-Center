@@ -70,12 +70,11 @@ void PCenter::solve( int maxIterCount )
         addCenter( centerSwap.newCenter, closestCenter );
         removeCenter( centerSwap.oldCenter );
         // record if it is the best solution
-        if (minRadius < serveRadius) {
-            serveRadius = minRadius;
+        if (minRadius < bestSolution.serveRadius) {
             timer.record();
             bestSolution.duration = timer.getDuration();
             bestSolution.iterCount = iterCount;
-            bestSolution.serveRadius = serveRadius;
+            bestSolution.serveRadius = minRadius;
             bestSolution.center = center;
         }
     }
@@ -86,7 +85,7 @@ void PCenter::greedySolve( int maxIterCount )
     genInitSolution();
 
     RandSelect rs( 2 );
-    for (int i = 0; i < maxIterCount; i++) {
+    for (int iterCount = 0; iterCount < maxIterCount; iterCount++) {
         CenterSwap centerSwap;
         Graph::Distance minRadius = Graph::MAX_DISTANCE;
 
@@ -138,36 +137,54 @@ void PCenter::greedySolve( int maxIterCount )
         center.insert( centerSwap.newCenter );
         addCenter( centerSwap.newCenter, closestCenter );   // add first may pop the being removed center out of the
         removeCenter( centerSwap.oldCenter );   // closestCenter queue which will left less work to removeCenter()
+        // record if it is the best solution
+        if (minRadius < bestSolution.serveRadius) {
+            timer.record();
+            bestSolution.duration = timer.getDuration();
+            bestSolution.iterCount = iterCount;
+            bestSolution.serveRadius = minRadius;
+            bestSolution.center = center;
+        }
     }
 }
 
 bool PCenter::check() const
 {
-    Graph::Distance radius = Graph::MIN_DISTANCE;
-
     for (int i = graph.minVertexIndex; i < graph.maxVertexIndex; i++) {
+        Graph::Distance minRadius = Graph::MAX_DISTANCE;
+        for (Graph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
+            if (minRadius > graph.distance( i, *iter )) {
+                minRadius = graph.distance( i, *iter );
+            }
+        }
 
+        if (minRadius > bestSolution.serveRadius) {
+            return false;
+        }
     }
+
+    return true;
 }
 
 void PCenter::printResult( ostream &os ) const
 {
-    os << "The max serving radius is : " << serveRadius << endl;
+    os << "The max serving radius is : " << bestSolution.serveRadius << endl;
     os << "The indexes of the vertices which are chosed as centers are :\n";
-    for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+    for (Graph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
         os << *iter << "|";
     }
 }
 
 void PCenter::initResultSheet( std::ofstream &csvFile )
 {
-    csvFile << "Instance, " << "Duration, " << "ServingRadius, " << "Centers" << endl;
+    csvFile << "Instance, " << "Duration, " << "IterCount, " << "ServingRadius, " << "Centers" << endl;
 }
 
 void PCenter::appendResultToSheet( const char *instanceFileName, ofstream &csvFile ) const
 {
-    csvFile << instanceFileName << ", " << timer.getDuration() << ", " << serveRadius << ", ";
-    for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+    csvFile << instanceFileName << ", " << bestSolution.duration << ", "
+        << bestSolution.iterCount << ", " << bestSolution.serveRadius << ", ";
+    for (Graph::VertexSet::iterator iter = bestSolution.center.begin( ); iter != bestSolution.center.end( ); iter++) {
         csvFile << *iter << "|";
     }
     csvFile << endl;
@@ -210,8 +227,8 @@ void PCenter::genInitSolution()
         center.insert( newCenter );
     }
 
-    // record serve radius
-    serveRadius = closestCenter[findFarthestVertex( closestCenter )].dist[0];
+    // init the min max min serve radius
+    bestSolution.serveRadius = closestCenter[findFarthestVertex( closestCenter )].dist[0];
 }
 
 void PCenter::initClosestCenter( int firstCenter, int secondCenter )
