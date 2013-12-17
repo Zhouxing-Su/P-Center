@@ -45,7 +45,8 @@ public:
     ~PCenter();
 
     void solve();
-    void greedySolve();
+    void BasicSolve();
+    void greedyBasicSolve();
     bool check() const; // check the result by shortestDist
 
     void printResult( std::ostream &os ) const;
@@ -84,6 +85,7 @@ private:
 
     void genInitSolution();
     void initClosestCenter( int firstCenter, int secondCenter );
+    int getTabuTenure( int iterCount ) const;
 
     // find one of the farthest vertices from the center set randomly.
     int findFarthestVertex( ClosestCenterTable &closestCenter ) const;         // available after initClosestCenter() is called
@@ -107,6 +109,7 @@ private:
     int maxIterCount;
     Solution bestSolution;
     Timer timer;
+    std::string solvingAlgorithm;
 };
 
 
