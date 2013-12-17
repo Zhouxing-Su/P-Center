@@ -68,13 +68,13 @@ int main( int argc, char **argv )
         UndirectedGraph g( arcList, nodeNum, 1 );
 
         for (int i = 1; i <= runTime; i++) {
-            PCenter pc( g, pNum, i * 100000 );
+            PCenter pc( g, pNum, i * 2500 );
 
-            pc.solve( 10, 5 );
+            pc.solve( 50*i, 5*i );
+            //pc.basicSolve();
             pc.printResult( cout );
             if (!pc.check()) {
-                cout << "\n\nLogic error detected when running instance \"" << argv[i] << "\" !" << endl;
-                return -1;
+                ofs << "[LogicError] " << endl;
             }
 
             pc.appendResultToSheet( *iter, ofs );

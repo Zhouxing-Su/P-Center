@@ -46,7 +46,7 @@ public:
     ~PCenter();
 
     void solve( int tabuTenureBase, int tabuTenureAmplitude );
-    void BasicSolve();
+    void basicSolve();
     void greedyBasicSolve();
     bool check() const; // check the result by shortestDist
 
@@ -114,6 +114,8 @@ private:
     // find the set of the longest serve arcs
     Graph::ArcSet findLongestServeArcs( ClosestCenterTable &closestCenter ) const;  // available after initClosestCenter() is called
 
+    // select a pair of (oldCenter,newCenter)
+    CenterSwap getRandSwap() const;
     // update the closest center queue on each vertex (will not update the center set)
     void addCenter( int newCenter, ClosestCenterTable &closestCenter );    // available after initClosestCenter() is called
     // update the closest center queue on each vertex (will not update the center set)

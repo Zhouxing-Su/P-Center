@@ -3,7 +3,7 @@
 using namespace std;
 
 PCenter::PCenter( UndirectedGraph &ug, int pn, int mic )
-: graph( ug ), pnum( pn ), closestCenter( ug.vertexAllocNum, ClosestCenterQueue() ),
+: pnum( pn ), graph( ug ), closestCenter( ug.vertexAllocNum, ClosestCenterQueue() ),
 tabu( ug.vertexAllocNum, vector<int>( ug.vertexAllocNum, 0 ) ), maxIterCount( mic )
 {
     graph.getDistSeqTable();
@@ -26,6 +26,7 @@ void PCenter::solve( int tabuTenureBase, int tabuTenureAmplitude )
 
     RandSelect rs( 2 );
     for (int iterCount = 0; iterCount < maxIterCount; iterCount++) {
+        bool isSwaped = false;
         CenterSwap centerSwap;
         Graph::Distance minRadius = Graph::MAX_DISTANCE;
 
@@ -61,12 +62,14 @@ void PCenter::solve( int tabuTenureBase, int tabuTenureAmplitude )
                             centerSwap = CenterSwap( removedCenter, newCenter );
                             minRadius = radiusAfterRemove;
                             rs.reset( 2 );
+                            isSwaped = true;
                         }
                     } else if (radiusAfterRemove == minRadius) {
                         if (rs.isSelected()) {
                             if (radiusAfterRemove < bestSolution.serveRadius
                                 || iterCount > tabu[removedCenter][newCenter]) {
                                 centerSwap = CenterSwap( removedCenter, newCenter );
+                                isSwaped = true;
                             }
                         }
                     }
@@ -75,12 +78,19 @@ void PCenter::solve( int tabuTenureBase, int tabuTenureAmplitude )
                 break;
             }
         }
+
+        if (!isSwaped) {    // do limited perturbation
+            centerSwap = getRandSwap();
+        }
         // commit the swap
         center.erase( centerSwap.oldCenter );
         center.insert( centerSwap.newCenter );
         addCenter( centerSwap.newCenter, closestCenter );
         removeCenter( centerSwap.oldCenter );
         tabu[centerSwap.oldCenter][centerSwap.newCenter] = getTabuTenure( iterCount );
+        if (!isSwaped) {    // update minRadius
+            minRadius = closestCenter[findFarthestVertex( closestCenter )].dist[0];
+        }
         // record if it is the best solution
         if (minRadius < bestSolution.serveRadius) {
             timer.record();
@@ -92,7 +102,7 @@ void PCenter::solve( int tabuTenureBase, int tabuTenureAmplitude )
     }
 }
 
-void PCenter::BasicSolve()
+void PCenter::basicSolve()
 {
     solvingAlgorithm = "basic local search";
     genInitSolution();
@@ -229,6 +239,10 @@ void PCenter::greedyBasicSolve()
 
 bool PCenter::check() const
 {
+    if (bestSolution.center.size() != pnum) {
+        return false;
+    }
+
     for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
         Graph::Distance minRadius = Graph::MAX_DISTANCE;
         for (Graph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
@@ -262,7 +276,7 @@ void PCenter::initResultSheet( std::ofstream &csvFile )
 
 void PCenter::appendResultToSheet( const string &instanceFileName, ofstream &csvFile ) const
 {
-    csvFile << Timer::getLocalTime() << ", " << instanceFileName << ", " << solvingAlgorithm << ", " << maxIterCount << ", "
+    csvFile << Timer::getLocalTime() << ", " << solvingAlgorithm << ", " << instanceFileName << ", " << maxIterCount << ", "
         << bestSolution.duration << ", " << bestSolution.iterCount << ", " << bestSolution.serveRadius << ", ";
     for (Graph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
         csvFile << *iter << "|";
@@ -382,6 +396,33 @@ Graph::ArcSet PCenter::findLongestServeArcs( ClosestCenterTable &cct ) const
     }
 
     return longestServeArcs;
+}
+
+PCenter::CenterSwap PCenter::getRandSwap() const
+{
+    RandSelect selectOld( 1 );
+    RandSelect selectNew( 1 );
+
+    CenterSwap cs;
+    vector<bool> isCenter( graph.vertexAllocNum, false );
+
+    for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+        isCenter[*iter] = true;
+    }
+
+    for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
+        if (isCenter[i]) {
+            if (selectOld.isSelected()) {
+                cs.oldCenter = i;
+            }
+        } else {
+            if (selectNew.isSelected()) {
+                cs.newCenter = i;
+            }
+        }
+    }
+
+    return cs;
 }
 
 void PCenter::addCenter( int newCenter, ClosestCenterTable &cct )
