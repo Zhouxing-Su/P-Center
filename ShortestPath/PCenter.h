@@ -20,6 +20,7 @@ return 0;
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <vector>
 #include <set>
 #include <ctime>
@@ -44,7 +45,7 @@ public:
     PCenter( UndirectedGraph &ug, int pnum, int maxIterCount );
     ~PCenter();
 
-    void solve();
+    void solve( int tabuTenureBase, int tabuTenureAmplitude );
     void BasicSolve();
     void greedyBasicSolve();
     bool check() const; // check the result by shortestDist
@@ -83,9 +84,26 @@ private:
     typedef std::vector<ClosestCenterQueue> ClosestCenterTable;
     typedef std::vector< std::vector<int> > TabuTable;
 
+    class TabuTenureCalculator
+    {
+    public:
+        TabuTenureCalculator( int ttb, int tta )
+            : tabuTenureBase( ttb ), tabuTenureAmplitude( tta ), rr( -tta, tta )
+        {
+        }
+
+        int operator()( int iterCount )
+        {
+            return iterCount + rr() + tabuTenureBase;
+        }
+
+        const int tabuTenureBase;
+        const int tabuTenureAmplitude;
+        RangeRand rr;
+    };
+
     void genInitSolution();
     void initClosestCenter( int firstCenter, int secondCenter );
-    int getTabuTenure( int iterCount ) const;
 
     // find one of the farthest vertices from the center set randomly.
     int findFarthestVertex( ClosestCenterTable &closestCenter ) const;         // available after initClosestCenter() is called
@@ -104,6 +122,7 @@ private:
     UndirectedGraph graph;
     Graph::VertexSet center;
     ClosestCenterTable closestCenter;
+
     TabuTable tabu;
 
     int maxIterCount;

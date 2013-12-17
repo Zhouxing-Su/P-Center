@@ -15,9 +15,13 @@ PCenter::~PCenter()
 }
 
 
-void PCenter::solve()
+void PCenter::solve( int tabuTenureBase, int tabuTenureAmplitude )
 {
-    solvingAlgorithm = "tabu search";
+    ostringstream ss;
+    ss << "tabu search(B=" << tabuTenureBase << "&A=" << tabuTenureAmplitude << ')';
+    solvingAlgorithm = ss.str();
+
+    TabuTenureCalculator getTabuTenure( tabuTenureBase, tabuTenureAmplitude );
     genInitSolution();
 
     RandSelect rs( 2 );
@@ -52,12 +56,18 @@ void PCenter::solve()
                     }
                     // check if the swap between the candidate and the old is better
                     if (radiusAfterRemove < minRadius) {
-                        centerSwap = CenterSwap( removedCenter, newCenter );
-                        minRadius = radiusAfterRemove;
-                        rs.reset( 2 );
+                        if (radiusAfterRemove < bestSolution.serveRadius
+                            || iterCount > tabu[removedCenter][newCenter]) {
+                            centerSwap = CenterSwap( removedCenter, newCenter );
+                            minRadius = radiusAfterRemove;
+                            rs.reset( 2 );
+                        }
                     } else if (radiusAfterRemove == minRadius) {
                         if (rs.isSelected()) {
-                            centerSwap = CenterSwap( removedCenter, newCenter );
+                            if (radiusAfterRemove < bestSolution.serveRadius
+                                || iterCount > tabu[removedCenter][newCenter]) {
+                                centerSwap = CenterSwap( removedCenter, newCenter );
+                            }
                         }
                     }
                 }
@@ -70,6 +80,7 @@ void PCenter::solve()
         center.insert( centerSwap.newCenter );
         addCenter( centerSwap.newCenter, closestCenter );
         removeCenter( centerSwap.oldCenter );
+        tabu[centerSwap.oldCenter][centerSwap.newCenter] = getTabuTenure( iterCount );
         // record if it is the best solution
         if (minRadius < bestSolution.serveRadius) {
             timer.record();
@@ -121,7 +132,6 @@ void PCenter::BasicSolve()
                         centerSwap = CenterSwap( removedCenter, newCenter );
                         minRadius = radiusAfterRemove;
                         rs.reset( 2 );
-                        tabu[removedCenter][newCenter] = getTabuTenure(iterCount);
                     } else if (radiusAfterRemove == minRadius) {
                         if (rs.isSelected()) {
                             centerSwap = CenterSwap( removedCenter, newCenter );
@@ -412,9 +422,4 @@ void PCenter::removeCenter( int oldCenter )
             }
         }
     }
-}
-
-int PCenter::getTabuTenure( int iterCount ) const
-{
-    return iterCount + 10;
 }

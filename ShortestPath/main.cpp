@@ -70,7 +70,7 @@ int main( int argc, char **argv )
         for (int i = 1; i <= runTime; i++) {
             PCenter pc( g, pNum, i * 100000 );
 
-            pc.solve();
+            pc.solve( 10, 5 );
             pc.printResult( cout );
             if (!pc.check()) {
                 cout << "\n\nLogic error detected when running instance \"" << argv[i] << "\" !" << endl;
