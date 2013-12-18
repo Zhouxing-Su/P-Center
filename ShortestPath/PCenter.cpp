@@ -14,8 +14,101 @@ PCenter::~PCenter()
 {
 }
 
-
 void PCenter::solve( int tabuTenureBase, int tabuTenureAmplitude )
+{
+    ostringstream ss;
+    ss << "perturb(RRGA)+tabu search(B=" << tabuTenureBase << "&A=" << tabuTenureAmplitude << ')';
+    solvingAlgorithm = ss.str();
+
+    TabuTenureCalculator getTabuTenure( tabuTenureBase, tabuTenureAmplitude );
+    int noImproveCount = 0;
+
+    genInitSolution();
+
+    RandSelect rs( 2 );
+    for (int iterCount = 0; iterCount < maxIterCount; iterCount++) {
+        bool isSwaped = false;
+        CenterSwap centerSwap;
+        Graph::Distance minRadius = Graph::MAX_DISTANCE;
+
+        Graph::Arc longestServeArc = findLongestServeArc( closestCenter );
+
+        int longestEnd = longestServeArc.endVertex;
+        Graph::Distance longestDist = longestServeArc.dist;
+        // try each vertex whose distance to longestEnd is shorter than longestDist
+        for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
+            int newCenter = graph.nthClosestVertex( longestEnd, i );
+            if (graph.distance( longestEnd, newCenter ) < longestDist) {
+                // find the best swap between center i and non-center vertices
+                ClosestCenterTable tmpCCT( closestCenter );
+                addCenter( newCenter, tmpCCT );
+                Graph::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
+                // calculate new radius for removing each center except the newly added one
+                for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+                    // when *iter is removed
+                    int removedCenter = *iter;
+                    Graph::Distance radiusAfterRemove = radiusAfterAdd;
+                    for (int k = graph.minVertexIndex; k <= graph.maxVertexIndex; k++) {
+                        if (tmpCCT[k].center[0] == removedCenter) {
+                            Graph::Distance newDist = tmpCCT[k].dist[1];
+                            if (radiusAfterRemove < newDist) {
+                                radiusAfterRemove = newDist;
+                            }
+                        }
+                    }
+                    // check if the swap between the candidate and the old is better
+                    if (radiusAfterRemove < minRadius) {
+                        if (radiusAfterRemove < bestSolution.serveRadius
+                            || iterCount > tabu[removedCenter][newCenter]) {
+                            centerSwap = CenterSwap( removedCenter, newCenter );
+                            minRadius = radiusAfterRemove;
+                            rs.reset( 2 );
+                            isSwaped = true;
+                        }
+                    } else if (radiusAfterRemove == minRadius) {
+                        if (rs.isSelected()) {
+                            if (radiusAfterRemove < bestSolution.serveRadius
+                                || iterCount > tabu[removedCenter][newCenter]) {
+                                centerSwap = CenterSwap( removedCenter, newCenter );
+                                isSwaped = true;
+                            }
+                        }
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        if (!isSwaped || noImproveCount > (4 * graph.vertexNum)) {    // "Random Remove, Greedy Add" perturbation
+            minRadius = perturbRRGA( pnum / 4 );
+            getTabuTenure.reset();
+            noImproveCount = 0;
+        } else {    // commit the swap
+            center.erase( centerSwap.oldCenter );
+            center.insert( centerSwap.newCenter );
+            addCenter( centerSwap.newCenter, closestCenter );
+            removeCenter( centerSwap.oldCenter );
+        }
+        // record if it is the best solution
+        if (minRadius < bestSolution.serveRadius) {
+            timer.record();
+            bestSolution.duration = timer.getDuration();
+            bestSolution.iterCount = iterCount;
+            bestSolution.serveRadius = minRadius;
+            bestSolution.center = center;
+            noImproveCount = 0;
+        } else {
+            ++noImproveCount;
+        }
+        // update tabu
+        if (isSwaped) {
+            tabu[centerSwap.oldCenter][centerSwap.newCenter] = getTabuTenure( iterCount, (noImproveCount == 0) );
+        }
+    }
+}
+
+void PCenter::tabuSolve( int tabuTenureBase, int tabuTenureAmplitude )
 {
     ostringstream ss;
     ss << "tabu search(B=" << tabuTenureBase << "&A=" << tabuTenureAmplitude << ')';
@@ -79,15 +172,15 @@ void PCenter::solve( int tabuTenureBase, int tabuTenureAmplitude )
             }
         }
 
-        if (!isSwaped) {    // do limited perturbation
+        if (!isSwaped) {    // do strong perturbation
             centerSwap = getRandSwap();
+            //do strong perturbation !!!
         }
         // commit the swap
         center.erase( centerSwap.oldCenter );
         center.insert( centerSwap.newCenter );
         addCenter( centerSwap.newCenter, closestCenter );
         removeCenter( centerSwap.oldCenter );
-        tabu[centerSwap.oldCenter][centerSwap.newCenter] = getTabuTenure( iterCount );
         if (!isSwaped) {    // update minRadius
             minRadius = closestCenter[findFarthestVertex( closestCenter )].dist[0];
         }
@@ -98,6 +191,9 @@ void PCenter::solve( int tabuTenureBase, int tabuTenureAmplitude )
             bestSolution.iterCount = iterCount;
             bestSolution.serveRadius = minRadius;
             bestSolution.center = center;
+            tabu[centerSwap.oldCenter][centerSwap.newCenter] = getTabuTenure( iterCount, true );
+        } else {
+            tabu[centerSwap.oldCenter][centerSwap.newCenter] = getTabuTenure( iterCount, false );
         }
     }
 }
@@ -317,8 +413,8 @@ void PCenter::genInitSolution()
     for (int i = pnum - 2; i > 0; i--) {
         int fv = findFarthestVertex( closestCenter );
         int newCenter = graph.findVertexWithinRadius( fv, closestCenter[fv].dist[0] );
-        addCenter( newCenter, closestCenter );
         center.insert( newCenter );
+        addCenter( newCenter, closestCenter );
     }
 
     // init the min max min serve radius
@@ -398,33 +494,6 @@ Graph::ArcSet PCenter::findLongestServeArcs( ClosestCenterTable &cct ) const
     return longestServeArcs;
 }
 
-PCenter::CenterSwap PCenter::getRandSwap() const
-{
-    RandSelect selectOld( 1 );
-    RandSelect selectNew( 1 );
-
-    CenterSwap cs;
-    vector<bool> isCenter( graph.vertexAllocNum, false );
-
-    for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
-        isCenter[*iter] = true;
-    }
-
-    for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
-        if (isCenter[i]) {
-            if (selectOld.isSelected()) {
-                cs.oldCenter = i;
-            }
-        } else {
-            if (selectNew.isSelected()) {
-                cs.newCenter = i;
-            }
-        }
-    }
-
-    return cs;
-}
-
 void PCenter::addCenter( int newCenter, ClosestCenterTable &cct )
 {
     for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
@@ -463,4 +532,52 @@ void PCenter::removeCenter( int oldCenter )
             }
         }
     }
+}
+
+PCenter::CenterSwap PCenter::getRandSwap() const
+{
+    RandSelect selectOld( 1 );
+    RandSelect selectNew( 1 );
+
+    CenterSwap cs;
+    vector<bool> isCenter( graph.vertexAllocNum, false );
+
+    for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+        isCenter[*iter] = true;
+    }
+
+    for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
+        if (isCenter[i]) {
+            if (selectOld.isSelected()) {
+                cs.oldCenter = i;
+            }
+        } else {
+            if (selectNew.isSelected()) {
+                cs.newCenter = i;
+            }
+        }
+    }
+
+    return cs;
+}
+
+Graph::Distance PCenter::perturbRRGA( int perturbStrength )
+{
+    // remove some centers
+    for (int i = perturbStrength; i > 0; i--) {
+        RangeRand rr( 0, center.size() - 1 );
+        Graph::VertexSet::iterator iter = center.begin();
+        advance( iter, rr() );
+        removeCenter( *iter );
+        center.erase( iter );
+    }
+    // select some new centers
+    for (int i = perturbStrength; i > 0; i--) {
+        int fv = findFarthestVertex( closestCenter );
+        int newCenter = graph.findVertexWithinRadius( fv, closestCenter[fv].dist[0] );
+        center.insert( newCenter );
+        addCenter( newCenter, closestCenter );
+    }
+    // recalculate the min radius
+    return closestCenter[findFarthestVertex( closestCenter )].dist[0];
 }

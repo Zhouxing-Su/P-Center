@@ -43,7 +43,7 @@ Graph::ArcList readPmedInstance( const string &fname, int &nodeNum, int &arcNum,
 
 int main( int argc, char **argv )
 {
-    const int runTime = 10;
+    const int runTime = 8;
 
     ofstream ofs( "log.csv", ios::app );
     //PCenter::initResultSheet( ofs ); // call if log.csv is not exist
@@ -68,13 +68,13 @@ int main( int argc, char **argv )
         UndirectedGraph g( arcList, nodeNum, 1 );
 
         for (int i = 1; i <= runTime; i++) {
-            PCenter pc( g, pNum, i * 2500 );
+            PCenter pc( g, pNum, i * 20 * nodeNum );
 
-            pc.solve( 50*i, 5*i );
-            //pc.basicSolve();
+            pc.solve( i*nodeNum/2, nodeNum/2 );
+
             pc.printResult( cout );
             if (!pc.check()) {
-                ofs << "[LogicError] " << endl;
+                ofs << "[LogicError] ";
             }
 
             pc.appendResultToSheet( *iter, ofs );

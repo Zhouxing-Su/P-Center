@@ -46,6 +46,7 @@ public:
     ~PCenter();
 
     void solve( int tabuTenureBase, int tabuTenureAmplitude );
+    void tabuSolve( int tabuTenureBase, int tabuTenureAmplitude );
     void basicSolve();
     void greedyBasicSolve();
     bool check() const; // check the result by shortestDist
@@ -88,8 +89,34 @@ private:
     {
     public:
         TabuTenureCalculator( int ttb, int tta )
-            : tabuTenureBase( ttb ), tabuTenureAmplitude( tta ), rr( -tta, tta )
+            : tabuTenureBase( ttb ), tabuTenureAmplitude( tta ), rr( -tta, tta ), threshold( ttb * 8 ), punishment( 1 )//, ofs( "TabuTenure.csv" )
         {
+        }
+
+        //~TabuTenureCalculator()
+        //{
+        //    ofs.close();
+        //}
+
+        const int tabuTenureBase;
+        const int tabuTenureAmplitude;
+        const int threshold;
+        static const int attenuation = 16;
+
+        int operator()( int iterCount, bool isBest )
+        {
+            if (isBest) {
+                punishment /= attenuation;
+            } else {
+                ++punishment;   // (punishment <= 1 || punishment >= threshold)
+                if (punishment < threshold) {
+                    punishment *= 9;
+                    punishment /= 8;
+                }
+            }
+            int tenure = iterCount + rr() + tabuTenureBase + punishment;
+            //ofs << tenure << '\n';
+            return tenure;
         }
 
         int operator()( int iterCount )
@@ -97,8 +124,13 @@ private:
             return iterCount + rr() + tabuTenureBase;
         }
 
-        const int tabuTenureBase;
-        const int tabuTenureAmplitude;
+        void reset()
+        {
+            punishment = 1;
+        }
+
+        std::ofstream ofs;
+        int punishment;
         RangeRand rr;
     };
 
@@ -114,12 +146,14 @@ private:
     // find the set of the longest serve arcs
     Graph::ArcSet findLongestServeArcs( ClosestCenterTable &closestCenter ) const;  // available after initClosestCenter() is called
 
-    // select a pair of (oldCenter,newCenter)
-    CenterSwap getRandSwap() const;
     // update the closest center queue on each vertex (will not update the center set)
     void addCenter( int newCenter, ClosestCenterTable &closestCenter );    // available after initClosestCenter() is called
     // update the closest center queue on each vertex (will not update the center set)
     void removeCenter( int oldCenter ); // available after initClosestCenter() is called
+    // select a pair of (oldCenter,newCenter)
+    CenterSwap getRandSwap() const;
+    // Random Remove, Greedy Add perturbation, return new minRadius
+    Graph::Distance perturbRRGA( int perturbStrength );
 
     UndirectedGraph graph;
     Graph::VertexSet center;
