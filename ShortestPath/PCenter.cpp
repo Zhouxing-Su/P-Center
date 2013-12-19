@@ -2,7 +2,7 @@
 
 using namespace std;
 
-PCenter::PCenter( UndirectedGraph &ug, int pn, int mic )
+PCenter::PCenter( UndirectedGraph &ug, unsigned pn, int mic )
 : pnum( pn ), graph( ug ), closestCenter( ug.vertexAllocNum, ClosestCenterQueue() ),
 tabu( ug.vertexAllocNum, vector<int>( ug.vertexAllocNum, 0 ) ), maxIterCount( mic )
 {
@@ -21,7 +21,7 @@ void PCenter::solve( int tabuTenureBase, int tabuTenureAmplitude )
     solvingAlgorithm = ss.str();
 
     TabuTenureCalculator getTabuTenure( tabuTenureBase, tabuTenureAmplitude );
-    int noImproveCount = 0;
+    unsigned noImproveCount = 0;
 
     genInitSolution();
 
@@ -29,12 +29,12 @@ void PCenter::solve( int tabuTenureBase, int tabuTenureAmplitude )
     for (int iterCount = 0; iterCount < maxIterCount; iterCount++) {
         bool isSwaped = false;
         CenterSwap centerSwap;
-        Graph::Distance minRadius = Graph::MAX_DISTANCE;
+        TopologicalGraph::Distance minRadius = TopologicalGraph::MAX_DISTANCE;
 
-        Graph::Arc longestServeArc = findLongestServeArc( closestCenter );
+        TopologicalGraph::Arc longestServeArc = findLongestServeArc( closestCenter );
 
         int longestEnd = longestServeArc.endVertex;
-        Graph::Distance longestDist = longestServeArc.dist;
+        TopologicalGraph::Distance longestDist = longestServeArc.dist;
         // try each vertex whose distance to longestEnd is shorter than longestDist
         for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
             int newCenter = graph.nthClosestVertex( longestEnd, i );
@@ -42,15 +42,15 @@ void PCenter::solve( int tabuTenureBase, int tabuTenureAmplitude )
                 // find the best swap between center i and non-center vertices
                 ClosestCenterTable tmpCCT( closestCenter );
                 addCenter( newCenter, tmpCCT );
-                Graph::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
+                TopologicalGraph::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
                 // calculate new radius for removing each center except the newly added one
-                for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+                for (TopologicalGraph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
                     // when *iter is removed
                     int removedCenter = *iter;
-                    Graph::Distance radiusAfterRemove = radiusAfterAdd;
+                    TopologicalGraph::Distance radiusAfterRemove = radiusAfterAdd;
                     for (int k = graph.minVertexIndex; k <= graph.maxVertexIndex; k++) {
                         if (tmpCCT[k].center[0] == removedCenter) {
-                            Graph::Distance newDist = tmpCCT[k].dist[1];
+                            TopologicalGraph::Distance newDist = tmpCCT[k].dist[1];
                             if (radiusAfterRemove < newDist) {
                                 radiusAfterRemove = newDist;
                             }
@@ -121,12 +121,12 @@ void PCenter::tabuSolve( int tabuTenureBase, int tabuTenureAmplitude )
     for (int iterCount = 0; iterCount < maxIterCount; iterCount++) {
         bool isSwaped = false;
         CenterSwap centerSwap;
-        Graph::Distance minRadius = Graph::MAX_DISTANCE;
+        TopologicalGraph::Distance minRadius = TopologicalGraph::MAX_DISTANCE;
 
-        Graph::Arc longestServeArc = findLongestServeArc( closestCenter );
+        TopologicalGraph::Arc longestServeArc = findLongestServeArc( closestCenter );
 
         int longestEnd = longestServeArc.endVertex;
-        Graph::Distance longestDist = longestServeArc.dist;
+        TopologicalGraph::Distance longestDist = longestServeArc.dist;
         // try each vertex whose distance to longestEnd is shorter than longestDist
         for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
             int newCenter = graph.nthClosestVertex( longestEnd, i );
@@ -134,15 +134,15 @@ void PCenter::tabuSolve( int tabuTenureBase, int tabuTenureAmplitude )
                 // find the best swap between center i and non-center vertices
                 ClosestCenterTable tmpCCT( closestCenter );
                 addCenter( newCenter, tmpCCT );
-                Graph::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
+                TopologicalGraph::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
                 // calculate new radius for removing each center except the newly added one
-                for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+                for (TopologicalGraph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
                     // when *iter is removed
                     int removedCenter = *iter;
-                    Graph::Distance radiusAfterRemove = radiusAfterAdd;
+                    TopologicalGraph::Distance radiusAfterRemove = radiusAfterAdd;
                     for (int k = graph.minVertexIndex; k <= graph.maxVertexIndex; k++) {
                         if (tmpCCT[k].center[0] == removedCenter) {
-                            Graph::Distance newDist = tmpCCT[k].dist[1];
+                            TopologicalGraph::Distance newDist = tmpCCT[k].dist[1];
                             if (radiusAfterRemove < newDist) {
                                 radiusAfterRemove = newDist;
                             }
@@ -206,12 +206,12 @@ void PCenter::basicSolve()
     RandSelect rs( 2 );
     for (int iterCount = 0; iterCount < maxIterCount; iterCount++) {
         CenterSwap centerSwap;
-        Graph::Distance minRadius = Graph::MAX_DISTANCE;
+        TopologicalGraph::Distance minRadius = TopologicalGraph::MAX_DISTANCE;
 
-        Graph::Arc longestServeArc = findLongestServeArc( closestCenter );
+        TopologicalGraph::Arc longestServeArc = findLongestServeArc( closestCenter );
 
         int longestEnd = longestServeArc.endVertex;
-        Graph::Distance longestDist = longestServeArc.dist;
+        TopologicalGraph::Distance longestDist = longestServeArc.dist;
         // try each vertex whose distance to longestEnd is shorter than longestDist
         for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
             int newCenter = graph.nthClosestVertex( longestEnd, i );
@@ -219,15 +219,15 @@ void PCenter::basicSolve()
                 // find the best swap between center i and non-center vertices
                 ClosestCenterTable tmpCCT( closestCenter );
                 addCenter( newCenter, tmpCCT );
-                Graph::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
+                TopologicalGraph::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
                 // calculate new radius for removing each center except the newly added one
-                for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+                for (TopologicalGraph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
                     // when *iter is removed
                     int removedCenter = *iter;
-                    Graph::Distance radiusAfterRemove = radiusAfterAdd;
+                    TopologicalGraph::Distance radiusAfterRemove = radiusAfterAdd;
                     for (int k = graph.minVertexIndex; k <= graph.maxVertexIndex; k++) {
                         if (tmpCCT[k].center[0] == removedCenter) {
-                            Graph::Distance newDist = tmpCCT[k].dist[1];
+                            TopologicalGraph::Distance newDist = tmpCCT[k].dist[1];
                             if (radiusAfterRemove < newDist) {
                                 radiusAfterRemove = newDist;
                             }
@@ -272,13 +272,13 @@ void PCenter::greedyBasicSolve()
     RandSelect rs( 2 );
     for (int iterCount = 0; iterCount < maxIterCount; iterCount++) {
         CenterSwap centerSwap;
-        Graph::Distance minRadius = Graph::MAX_DISTANCE;
+        TopologicalGraph::Distance minRadius = TopologicalGraph::MAX_DISTANCE;
 
-        Graph::ArcSet lsa = findLongestServeArcs( closestCenter );
+        TopologicalGraph::ArcSet lsa = findLongestServeArcs( closestCenter );
 
-        for (Graph::ArcSet::iterator iter = lsa.begin(); iter != lsa.end(); iter++) {
+        for (TopologicalGraph::ArcSet::iterator iter = lsa.begin(); iter != lsa.end(); iter++) {
             int longestEnd = iter->endVertex;
-            Graph::Distance longestDist = iter->dist;
+            TopologicalGraph::Distance longestDist = iter->dist;
             // try each vertex whose distance to longestEnd is shorter than longestDist
             for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
                 int newCenter = graph.nthClosestVertex( longestEnd, i );
@@ -286,15 +286,15 @@ void PCenter::greedyBasicSolve()
                     // find the best swap between center i and non-center vertices
                     ClosestCenterTable tmpCCT( closestCenter );
                     addCenter( newCenter, tmpCCT );
-                    Graph::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
+                    TopologicalGraph::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
                     // calculate new radius for removing each center
-                    for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+                    for (TopologicalGraph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
                         // when *iter is removed
                         int removedCenter = *iter;
-                        Graph::Distance radiusAfterRemove = radiusAfterAdd;
+                        TopologicalGraph::Distance radiusAfterRemove = radiusAfterAdd;
                         for (int k = graph.minVertexIndex; k <= graph.maxVertexIndex; k++) {
                             if (tmpCCT[k].center[0] == removedCenter) {
-                                Graph::Distance newDist = tmpCCT[k].dist[1];
+                                TopologicalGraph::Distance newDist = tmpCCT[k].dist[1];
                                 if (radiusAfterRemove < newDist) {
                                     radiusAfterRemove = newDist;
                                 }
@@ -340,8 +340,8 @@ bool PCenter::check() const
     }
 
     for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
-        Graph::Distance minRadius = Graph::MAX_DISTANCE;
-        for (Graph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
+        TopologicalGraph::Distance minRadius = TopologicalGraph::MAX_DISTANCE;
+        for (TopologicalGraph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
             if (minRadius > graph.distance( i, *iter )) {
                 minRadius = graph.distance( i, *iter );
             }
@@ -359,7 +359,7 @@ void PCenter::printResult( ostream &os ) const
 {
     os << "The max serving radius is : " << bestSolution.serveRadius << endl;
     os << "The indexes of the vertices which are chosed as centers are :\n";
-    for (Graph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
+    for (TopologicalGraph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
         os << *iter << "|";
     }
     os << endl;
@@ -374,7 +374,7 @@ void PCenter::appendResultToSheet( const string &instanceFileName, ofstream &csv
 {
     csvFile << Timer::getLocalTime() << ", " << solvingAlgorithm << ", " << instanceFileName << ", " << maxIterCount << ", "
         << bestSolution.duration << ", " << bestSolution.iterCount << ", " << bestSolution.serveRadius << ", ";
-    for (Graph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
+    for (TopologicalGraph::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
         csvFile << *iter << "|";
     }
     csvFile << endl;
@@ -393,7 +393,7 @@ void PCenter::genInitSolution()
     // select one of the longest arc with length longestDist randomly
     RandSelect rs( 2 );
     int longestEnd = graph.nthClosestVertex( firstCenter, graph.maxVertexIndex );
-    Graph::Distance longestDist = graph.distance( firstCenter, longestEnd );
+    TopologicalGraph::Distance longestDist = graph.distance( firstCenter, longestEnd );
     for (int i = (graph.maxVertexIndex - 1); i >= graph.minVertexIndex; i--) {
         if (graph.distance( firstCenter, graph.nthClosestVertex( firstCenter, i ) ) == longestDist) {
             if (rs.isSelected()) {
@@ -428,8 +428,8 @@ void PCenter::genInitSolution()
 void PCenter::initClosestCenter( int firstCenter, int secondCenter )
 {
     for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
-        Graph::Distance d1 = graph.distance( firstCenter, i );
-        Graph::Distance d2 = graph.distance( secondCenter, i );
+        TopologicalGraph::Distance d1 = graph.distance( firstCenter, i );
+        TopologicalGraph::Distance d2 = graph.distance( secondCenter, i );
         if (d1 < d2) {
             closestCenter[i] = ClosestCenterQueue( firstCenter, d1, secondCenter, d2 );
         } else {
@@ -440,7 +440,7 @@ void PCenter::initClosestCenter( int firstCenter, int secondCenter )
 
 int PCenter::findFarthestVertex( ClosestCenterTable &cct ) const
 {
-    Graph::Distance maxDist = Graph::MIN_DISTANCE;
+    TopologicalGraph::Distance maxDist = TopologicalGraph::MIN_DISTANCE;
     int farthestVertex;
     RandSelect rs( 2 );
     for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
@@ -458,17 +458,17 @@ int PCenter::findFarthestVertex( ClosestCenterTable &cct ) const
     return farthestVertex;
 }
 
-Graph::Arc PCenter::findLongestServeArc( ClosestCenterTable &cct ) const
+TopologicalGraph::Arc PCenter::findLongestServeArc( ClosestCenterTable &cct ) const
 {
     int fv = findFarthestVertex( cct );
 
-    return Graph::Arc( cct[fv].center[0], fv, cct[fv].dist[0] );
+    return TopologicalGraph::Arc( cct[fv].center[0], fv, cct[fv].dist[0] );
 }
 
-Graph::VertexSet PCenter::findFarthestVertices( ClosestCenterTable &cct ) const
+TopologicalGraph::VertexSet PCenter::findFarthestVertices( ClosestCenterTable &cct ) const
 {
-    Graph::Distance maxDist = Graph::MIN_DISTANCE;
-    Graph::VertexSet farthestVertices;
+    TopologicalGraph::Distance maxDist = TopologicalGraph::MIN_DISTANCE;
+    TopologicalGraph::VertexSet farthestVertices;
     for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
         if (maxDist < cct[i].dist[0]) {
             maxDist = cct[i].dist[0];
@@ -482,13 +482,13 @@ Graph::VertexSet PCenter::findFarthestVertices( ClosestCenterTable &cct ) const
     return farthestVertices;
 }
 
-Graph::ArcSet PCenter::findLongestServeArcs( ClosestCenterTable &cct ) const
+TopologicalGraph::ArcSet PCenter::findLongestServeArcs( ClosestCenterTable &cct ) const
 {
-    Graph::VertexSet fvs = findFarthestVertices( cct );
-    Graph::ArcSet longestServeArcs;
+    TopologicalGraph::VertexSet fvs = findFarthestVertices( cct );
+    TopologicalGraph::ArcSet longestServeArcs;
 
-    for (Graph::VertexSet::iterator iter = fvs.begin(); iter != fvs.end(); iter++) {
-        longestServeArcs.insert( Graph::Arc( cct[*iter].center[0], *iter, cct[*iter].dist[0] ) );
+    for (TopologicalGraph::VertexSet::iterator iter = fvs.begin(); iter != fvs.end(); iter++) {
+        longestServeArcs.insert( TopologicalGraph::Arc( cct[*iter].center[0], *iter, cct[*iter].dist[0] ) );
     }
 
     return longestServeArcs;
@@ -497,7 +497,7 @@ Graph::ArcSet PCenter::findLongestServeArcs( ClosestCenterTable &cct ) const
 void PCenter::addCenter( int newCenter, ClosestCenterTable &cct )
 {
     for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
-        Graph::Distance newDist = graph.distance( newCenter, i );
+        TopologicalGraph::Distance newDist = graph.distance( newCenter, i );
         if (newDist < cct[i].dist[0]) {
             cct[i].center[1] = cct[i].center[0];
             cct[i].dist[1] = cct[i].dist[0];
@@ -523,7 +523,7 @@ void PCenter::removeCenter( int oldCenter )
         if (changed || closestCenter[i].center[1] == oldCenter) {
             // locate the closest center and add it to the queue
             for (int k = graph.minVertexIndex; k <= graph.maxVertexIndex; k++) {
-                Graph::VertexSet::iterator iter = center.find( graph.nthClosestVertex( i, k ) );
+                TopologicalGraph::VertexSet::iterator iter = center.find( graph.nthClosestVertex( i, k ) );
                 if ((iter != center.end()) && (*iter != closestCenter[i].center[0]) && (*iter != oldCenter)) {
                     closestCenter[i].center[1] = *iter;
                     closestCenter[i].dist[1] = graph.distance( *iter, i );
@@ -542,7 +542,7 @@ PCenter::CenterSwap PCenter::getRandSwap() const
     CenterSwap cs;
     vector<bool> isCenter( graph.vertexAllocNum, false );
 
-    for (Graph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+    for (TopologicalGraph::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
         isCenter[*iter] = true;
     }
 
@@ -561,12 +561,12 @@ PCenter::CenterSwap PCenter::getRandSwap() const
     return cs;
 }
 
-Graph::Distance PCenter::perturbRRGA( int perturbStrength )
+TopologicalGraph::Distance PCenter::perturbRRGA( int perturbStrength )
 {
     // remove some centers
     for (int i = perturbStrength; i > 0; i--) {
         RangeRand rr( 0, center.size() - 1 );
-        Graph::VertexSet::iterator iter = center.begin();
+        TopologicalGraph::VertexSet::iterator iter = center.begin();
         advance( iter, rr() );
         removeCenter( *iter );
         center.erase( iter );

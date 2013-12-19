@@ -25,7 +25,7 @@ void readInstanceList( istream &is, vector<string> &filename )
     } while (!is.eof());
 }
 
-Graph::ArcList readPmedInstance( const string &fname, int &nodeNum, int &arcNum, int &pNum )
+TopologicalGraph::ArcList readPmedInstance( const string &fname, unsigned &nodeNum, unsigned &arcNum, unsigned &pNum )
 {
     ifstream ifs( fname );
     UndirectedGraph::ArcList arcList;
@@ -63,7 +63,7 @@ int main( int argc, char **argv )
 
     for (vector<string>::iterator iter = filename.begin(); iter != filename.end(); iter++) {
         // for each instance, run some times for judging average performance
-        int nodeNum, arcNum, pNum;
+        unsigned nodeNum, arcNum, pNum;
         UndirectedGraph::ArcList arcList( readPmedInstance( *iter, nodeNum, arcNum, pNum ) );
         UndirectedGraph g( arcList, nodeNum, 1 );
 

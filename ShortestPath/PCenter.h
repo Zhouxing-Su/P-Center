@@ -2,6 +2,11 @@
 *   usage :
 *           (single center is not considered here)
 
+*   Problems:
+* 1. choose update or not randomly when the distance to the new center is the same as 
+*    the second nearest center, or the distance to the new center is not less than 
+*    the nearest center and the distance to the first and second nearest centers are the same?
+
 (example code)
 ====================================================================
 #include <iostream>
@@ -34,15 +39,15 @@ class PCenter
 public:
     struct Solution
     {
-        Graph::Distance serveRadius;
-        Graph::VertexSet center;
+        TopologicalGraph::Distance serveRadius;
+        TopologicalGraph::VertexSet center;
         int iterCount;
         double duration;
     };
 
-    const int pnum;
+    const unsigned pnum;
 
-    PCenter( UndirectedGraph &ug, int pnum, int maxIterCount );
+    PCenter( UndirectedGraph &ug, unsigned pnum, int maxIterCount );
     ~PCenter();
 
     void solve( int tabuTenureBase, int tabuTenureAmplitude );
@@ -70,7 +75,7 @@ private:
     {
     public:
         ClosestCenterQueue() {}
-        ClosestCenterQueue( int c1, Graph::Distance d1, int c2, Graph::Distance d2 )
+        ClosestCenterQueue( int c1, TopologicalGraph::Distance d1, int c2, TopologicalGraph::Distance d2 )
         {
             center[0] = c1;
             center[1] = c2;
@@ -79,7 +84,7 @@ private:
         }
 
         std::array<int, 2> center;   // index of the center
-        std::array<Graph::Distance, 2> dist;    // distance to the center
+        std::array<TopologicalGraph::Distance, 2> dist;    // distance to the center
     };
 
     typedef std::vector<ClosestCenterQueue> ClosestCenterTable;
@@ -89,7 +94,7 @@ private:
     {
     public:
         TabuTenureCalculator( int ttb, int tta )
-            : tabuTenureBase( ttb ), tabuTenureAmplitude( tta ), rr( -tta, tta ), threshold( ttb * 8 ), punishment( 1 )//, ofs( "TabuTenure.csv" )
+            : tabuTenureBase( ttb ), tabuTenureAmplitude( tta ), threshold( ttb * 8 ), punishment( 1 ), rr( -tta, tta )//, ofs( "TabuTenure.csv" )
         {
         }
 
@@ -140,11 +145,11 @@ private:
     // find one of the farthest vertices from the center set randomly.
     int findFarthestVertex( ClosestCenterTable &closestCenter ) const;         // available after initClosestCenter() is called
     // find one of the longest serve arcs randomly
-    Graph::Arc findLongestServeArc( ClosestCenterTable &closestCenter ) const; // available after initClosestCenter() is called
+    TopologicalGraph::Arc findLongestServeArc( ClosestCenterTable &closestCenter ) const; // available after initClosestCenter() is called
     // find the set of the farthest vertices from the center set.
-    Graph::VertexSet findFarthestVertices( ClosestCenterTable &closestCenter ) const;        // available after initClosestCenter() is called
+    TopologicalGraph::VertexSet findFarthestVertices( ClosestCenterTable &closestCenter ) const;        // available after initClosestCenter() is called
     // find the set of the longest serve arcs
-    Graph::ArcSet findLongestServeArcs( ClosestCenterTable &closestCenter ) const;  // available after initClosestCenter() is called
+    TopologicalGraph::ArcSet findLongestServeArcs( ClosestCenterTable &closestCenter ) const;  // available after initClosestCenter() is called
 
     // update the closest center queue on each vertex (will not update the center set)
     void addCenter( int newCenter, ClosestCenterTable &closestCenter );    // available after initClosestCenter() is called
@@ -153,10 +158,10 @@ private:
     // select a pair of (oldCenter,newCenter)
     CenterSwap getRandSwap() const;
     // Random Remove, Greedy Add perturbation, return new minRadius
-    Graph::Distance perturbRRGA( int perturbStrength );
+    TopologicalGraph::Distance perturbRRGA( int perturbStrength );
 
     UndirectedGraph graph;
-    Graph::VertexSet center;
+    TopologicalGraph::VertexSet center;
     ClosestCenterTable closestCenter;
 
     TabuTable tabu;
