@@ -18,9 +18,6 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="PCenter.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\CPPutilibs\RandSelect.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -30,7 +27,7 @@
     <ClCompile Include="..\..\..\CPPutilibs\Timer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\CPPutilibs\Graph.cpp">
+    <ClCompile Include="..\..\..\CPPutilibs\Double.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -48,6 +45,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\CPPutilibs\Graph.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\CPPutilibs\Double.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

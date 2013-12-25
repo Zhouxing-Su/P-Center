@@ -8,11 +8,13 @@
 
 #include <iostream>
 #include <fstream>
+#include <cfloat>
 #include "Graph.h"
 #include "Timer.h"
 #include "RangeRand.h"
 #include "PCenter.h"
 #include "RandSelect.h"
+#include "Double.h"
 
 using namespace std;
 
@@ -25,11 +27,11 @@ void readInstanceList( istream &is, vector<string> &filename )
     } while (!is.eof());
 }
 
-TopologicalGraph::ArcList readPmedInstance( const string &fname, unsigned &nodeNum, unsigned &arcNum, unsigned &pNum )
+TopologicalGraph<>::ArcList readPmedInstance( const string &fname, unsigned &nodeNum, unsigned &arcNum, unsigned &pNum )
 {
     ifstream ifs( fname );
-    UndirectedGraph::ArcList arcList;
-    UndirectedGraph::Arc arc;
+    UndirectedGraph<>::ArcList arcList;
+    UndirectedGraph<>::Arc arc;
     ifs >> nodeNum >> arcNum >> pNum;
 
     do {
@@ -41,12 +43,9 @@ TopologicalGraph::ArcList readPmedInstance( const string &fname, unsigned &nodeN
     return arcList;
 }
 
-int main( int argc, char **argv )
+int solve_pmed( int argc, char **argv, ofstream &csvFile )
 {
     const int runTime = 8;
-
-    ofstream ofs( "log.csv", ios::app );
-    //PCenter::initResultSheet( ofs ); // call if log.csv is not exist
 
     vector<string> filename;
 
@@ -64,22 +63,81 @@ int main( int argc, char **argv )
     for (vector<string>::iterator iter = filename.begin(); iter != filename.end(); iter++) {
         // for each instance, run some times for judging average performance
         unsigned nodeNum, arcNum, pNum;
-        UndirectedGraph::ArcList arcList( readPmedInstance( *iter, nodeNum, arcNum, pNum ) );
-        UndirectedGraph g( arcList, nodeNum, 1 );
+        UndirectedGraph<unsigned>::ArcList arcList( readPmedInstance( *iter, nodeNum, arcNum, pNum ) );
+        UndirectedGraph<unsigned> g( arcList, nodeNum, 1 );
 
         for (int i = 1; i <= runTime; i++) {
-            PCenter pc( g, pNum, i * 20 * nodeNum );
+            PCenter<unsigned> pc( g, pNum, i * 20 * nodeNum );
 
-            pc.solve( i*nodeNum/2, nodeNum/2 );
+            pc.solve( i*nodeNum / 2, nodeNum / 2 );
 
             pc.printResult( cout );
             if (!pc.check()) {
-                ofs << "[LogicError] ";
+                csvFile << "[LogicError] ";
             }
 
-            pc.appendResultToSheet( *iter, ofs );
+            pc.appendResultToSheet( *iter, csvFile );
         }
     }
+}
+
+
+GeometricalGraph::PointList read_rl1323Instance( const string &fname )
+{
+    ifstream ifs( fname );
+
+    GeometricalGraph::Coord x, y;
+    GeometricalGraph::PointList pl;
+
+    do {
+        ifs >> x >> y;
+        pl.push_back( GeometricalGraph::Point( x, y ) );
+    } while (!ifs.eof());
+
+    ifs.close();
+    return pl;
+}
+
+int solve_rl1323( ofstream &csvFile )
+{
+    const string fname( "rl1323.tsp" );
+    const int nodeNum = 1323;
+
+    const int runTime = 4;
+
+    GeometricalGraph gg( read_rl1323Instance( fname ) );
+    UndirectedGraph<Double> dug( gg );
+
+    for (int pnum = 10; pnum <= 100; pnum += 10) {
+        // for each instance, run some times for judging average performance
+
+        for (int i = 1; i <= runTime; i++) {
+            PCenter<Double> pc( dug, pnum, i * 500000 );
+
+            pc.solve( i*nodeNum / 2, nodeNum / 2 );
+
+            pc.printResult( cout );
+            if (!pc.check()) {
+                csvFile << "[LogicError] ";
+            }
+
+            ostringstream fn( fname );
+            fn << '(' << pnum << ')';
+            pc.appendResultToSheet( fn.str(), csvFile );
+        }
+    }
+
+    return -1;
+}
+
+int main( int argc, char **argv )
+{
+
+    ofstream ofs( "log.csv", ios::app );
+    //PCenter::initResultSheet( ofs ); // call if log.csv is not exist
+
+    //solve_pmed( argc, argv, ofs );
+    solve_rl1323( ofs );
 
     ofs.close();
     return 0;

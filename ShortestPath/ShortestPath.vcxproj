@@ -79,14 +79,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\CPPutilibs\Graph.cpp" />
+    <ClCompile Include="..\..\..\CPPutilibs\Double.cpp" />
     <ClCompile Include="..\..\..\CPPutilibs\RandSelect.cpp" />
     <ClCompile Include="..\..\..\CPPutilibs\RangeRand.cpp" />
     <ClCompile Include="..\..\..\CPPutilibs\Timer.cpp" />
-    <ClCompile Include="PCenter.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\CPPutilibs\Double.h" />
     <ClInclude Include="..\..\..\CPPutilibs\Graph.h" />
     <ClInclude Include="..\..\..\CPPutilibs\RandSelect.h" />
     <ClInclude Include="..\..\..\CPPutilibs\RangeRand.h" />
