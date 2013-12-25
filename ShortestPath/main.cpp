@@ -106,13 +106,13 @@ int solve_rl1323( ofstream &csvFile )
     const int runTime = 4;
 
     GeometricalGraph gg( read_rl1323Instance( fname ) );
-    UndirectedGraph<Double> dug( gg );
+    UndirectedGraph<double> dug( gg );
 
     for (int pnum = 10; pnum <= 100; pnum += 10) {
         // for each instance, run some times for judging average performance
 
         for (int i = 1; i <= runTime; i++) {
-            PCenter<Double> pc( dug, pnum, i * 500000 );
+            PCenter<double> pc( dug, pnum, i * 500000 );
 
             pc.solve( i*nodeNum / 2, nodeNum / 2 );
 
