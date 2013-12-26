@@ -16,7 +16,9 @@
 #include <sstream>
 #include <vector>
 #include <set>
+#include <typeinfo>
 #include <ctime>
+#include <utility>
 #include "Graph.h"
 #include "RangeRand.h"
 #include "RandSelect.h"
@@ -40,6 +42,7 @@ public:
     ~PCenter();
 
     void solve( int tabuTenureBase, int tabuTenureAmplitude );
+    void pertSolve( int tabuTenureBase, int tabuTenureAmplitude );
     void tabuSolve( int tabuTenureBase, int tabuTenureAmplitude );
     void basicSolve();
     void greedyBasicSolve();
@@ -146,8 +149,10 @@ private:
     void removeCenter( int oldCenter ); // available after initClosestCenter() is called
     // select a pair of (oldCenter,newCenter)
     CenterSwap getRandSwap() const;
-    // Random Remove, Greedy Add perturbation, return new minRadius
-    typename TopologicalGraph<T_DIST>::Distance perturbRRGA( int perturbStrength );
+    // Random Remove, Greedy Add perturbation
+    void perturbRRGA( int perturbStrength );
+    // Random Remove, Random Add perturbation
+    void perturbRRRA( int perturbStrength );
 
     UndirectedGraph<T_DIST> graph;
     typename TopologicalGraph<T_DIST>::VertexSet center;
@@ -192,7 +197,103 @@ template <typename T_DIST>
 void PCenter<T_DIST>::solve( int tabuTenureBase, int tabuTenureAmplitude )
 {
     ostringstream ss;
-    ss << "perturb(RRGA)+tabu search(B=" << tabuTenureBase << "&A=" << tabuTenureAmplitude << ')';
+    ss << '[' << typeid(T_DIST).name() << ']' << "perturb(RRRA)+tabu search(B=" << tabuTenureBase << "&A=" << tabuTenureAmplitude << ')';
+    solvingAlgorithm = ss.str();
+
+    TabuTenureCalculator getTabuTenure( tabuTenureBase, tabuTenureAmplitude );
+    unsigned noImproveCount = 0;
+
+    genInitSolution();
+
+    RandSelect rs( 2 );
+    for (int iterCount = 0; iterCount < maxIterCount; iterCount++) {
+        bool isSwaped = false;
+        CenterSwap centerSwap;
+        TopologicalGraph<T_DIST>::Distance minRadius = TopologicalGraph<T_DIST>::MAX_DISTANCE;
+
+        TopologicalGraph<T_DIST>::Arc longestServeArc = findLongestServeArc( closestCenter );
+
+        int longestEnd = longestServeArc.endVertex;
+        TopologicalGraph<T_DIST>::Distance longestDist = longestServeArc.dist;
+        // try each vertex whose distance to longestEnd is shorter than longestDist
+        for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
+            int newCenter = graph.nthClosestVertex( longestEnd, i );
+            if (graph.distance( longestEnd, newCenter ) < longestDist) {
+                // find the best swap between center i and non-center vertices
+                ClosestCenterTable tmpCCT( closestCenter );
+                addCenter( newCenter, tmpCCT );
+                TopologicalGraph<T_DIST>::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
+                // calculate new radius for removing each center except the newly added one
+                for (TopologicalGraph<T_DIST>::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+                    // when *iter is removed
+                    int removedCenter = *iter;
+                    TopologicalGraph<T_DIST>::Distance radiusAfterRemove = radiusAfterAdd;
+                    for (int k = graph.minVertexIndex; k <= graph.maxVertexIndex; k++) {
+                        if (tmpCCT[k].center[0] == removedCenter) {
+                            TopologicalGraph<T_DIST>::Distance newDist = tmpCCT[k].dist[1];
+                            if (radiusAfterRemove < newDist) {
+                                radiusAfterRemove = newDist;
+                            }
+                        }
+                    }
+                    // check if the swap between the candidate and the old is better
+                    if (radiusAfterRemove < minRadius) {
+                        if (radiusAfterRemove < bestSolution.serveRadius
+                            || iterCount > tabu[removedCenter][newCenter]) {
+                            centerSwap = CenterSwap( removedCenter, newCenter );
+                            minRadius = radiusAfterRemove;
+                            rs.reset( 2 );
+                            isSwaped = true;
+                        }
+                    } else if (radiusAfterRemove == minRadius) {
+                        if (rs.isSelected()) {
+                            if (radiusAfterRemove < bestSolution.serveRadius
+                                || iterCount > tabu[removedCenter][newCenter]) {
+                                centerSwap = CenterSwap( removedCenter, newCenter );
+                                isSwaped = true;
+                            }
+                        }
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        if (!isSwaped || noImproveCount > (4 * graph.vertexNum)) {    // "Random Remove, Random Add" perturbation
+            perturbRRRA( pnum / 4 );
+            minRadius = closestCenter[findFarthestVertex( closestCenter )].dist[0];
+            getTabuTenure.reset();
+            noImproveCount = 0;
+        } else {    // commit the swap
+            center.erase( centerSwap.oldCenter );
+            center.insert( centerSwap.newCenter );
+            addCenter( centerSwap.newCenter, closestCenter );
+            removeCenter( centerSwap.oldCenter );
+        }
+        // record if it is the best solution
+        if (minRadius < bestSolution.serveRadius) {
+            timer.record();
+            bestSolution.duration = timer.getDuration();
+            bestSolution.iterCount = iterCount;
+            bestSolution.serveRadius = minRadius;
+            bestSolution.center = center;
+            noImproveCount = 0;
+        } else {
+            ++noImproveCount;
+        }
+        // update tabu
+        if (isSwaped) {
+            tabu[centerSwap.oldCenter][centerSwap.newCenter] = getTabuTenure( iterCount, (noImproveCount == 0) );
+        }
+    }
+}
+
+template <typename T_DIST>
+void PCenter<T_DIST>::pertSolve( int tabuTenureBase, int tabuTenureAmplitude )
+{
+    ostringstream ss;
+    ss << '[' << typeid(T_DIST).name() << ']' << "perturb(RRGA)+tabu search(B=" << tabuTenureBase << "&A=" << tabuTenureAmplitude << ')';
     solvingAlgorithm = ss.str();
 
     TabuTenureCalculator getTabuTenure( tabuTenureBase, tabuTenureAmplitude );
@@ -256,7 +357,8 @@ void PCenter<T_DIST>::solve( int tabuTenureBase, int tabuTenureAmplitude )
         }
 
         if (!isSwaped || noImproveCount > (4 * graph.vertexNum)) {    // "Random Remove, Greedy Add" perturbation
-            minRadius = perturbRRGA( pnum / 4 );
+            perturbRRGA( pnum / 4 );
+            minRadius = closestCenter[findFarthestVertex( closestCenter )].dist[0];
             getTabuTenure.reset();
             noImproveCount = 0;
         } else {    // commit the swap
@@ -287,7 +389,7 @@ template <typename T_DIST>
 void PCenter<T_DIST>::tabuSolve( int tabuTenureBase, int tabuTenureAmplitude )
 {
     ostringstream ss;
-    ss << "tabu search(B=" << tabuTenureBase << "&A=" << tabuTenureAmplitude << ')';
+    ss << '[' << typeid(T_DIST).name() << ']' << "tabu search(B=" << tabuTenureBase << "&A=" << tabuTenureAmplitude << ')';
     solvingAlgorithm = ss.str();
 
     TabuTenureCalculator getTabuTenure( tabuTenureBase, tabuTenureAmplitude );
@@ -348,9 +450,8 @@ void PCenter<T_DIST>::tabuSolve( int tabuTenureBase, int tabuTenureAmplitude )
             }
         }
 
-        if (!isSwaped) {    // do strong perturbation
+        if (!isSwaped) {    // do weak perturbation
             centerSwap = getRandSwap();
-            //do strong perturbation !!!
         }
         // commit the swap
         center.erase( centerSwap.oldCenter );
@@ -537,12 +638,13 @@ bool PCenter<T_DIST>::check() const
 template <typename T_DIST>
 void PCenter<T_DIST>::printResult( ostream &os ) const
 {
-    os << "The max serving radius is : " << bestSolution.serveRadius << endl;
-    os << "The indexes of the vertices which are chosed as centers are :\n";
-    for (TopologicalGraph<T_DIST>::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
-        os << *iter << "|";
-    }
-    os << endl;
+    os << bestSolution.serveRadius << endl;
+    //os << "The max serving radius is : " << bestSolution.serveRadius << endl;
+    //os << "The indexes of the vertices which are chosed as centers are :\n";
+    //for (TopologicalGraph<T_DIST>::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
+    //    os << *iter << "|";
+    //}
+    //os << endl;
 }
 
 template <typename T_DIST>
@@ -753,7 +855,7 @@ typename PCenter<T_DIST>::CenterSwap PCenter<T_DIST>::getRandSwap() const
 }
 
 template <typename T_DIST>
-typename TopologicalGraph<T_DIST>::Distance PCenter<T_DIST>::perturbRRGA( int perturbStrength )
+void PCenter<T_DIST>::perturbRRGA( int perturbStrength )
 {
     // remove some centers
     for (int i = perturbStrength; i > 0; i--) {
@@ -770,10 +872,36 @@ typename TopologicalGraph<T_DIST>::Distance PCenter<T_DIST>::perturbRRGA( int pe
         center.insert( newCenter );
         addCenter( newCenter, closestCenter );
     }
-    // recalculate the min radius
-    return closestCenter[findFarthestVertex( closestCenter )].dist[0];
 }
 
+template <typename T_DIST>
+void PCenter<T_DIST>::perturbRRRA( int perturbStrength )
+{
+    // remove some centers
+    for (int i = perturbStrength; i > 0; i--) {
+        RangeRand rr( 0, center.size() - 1 );
+        TopologicalGraph<T_DIST>::VertexSet::iterator iter = center.begin();
+        advance( iter, rr() );
+        removeCenter( *iter );
+        center.erase( iter );
+    }
+    // select some new centers randomly
+    for (int i = ((perturbStrength / 2) + (perturbStrength % 2)); i > 0; i--) {
+        RangeRand rr( graph.minVertexIndex, graph.maxVertexIndex );
+        int newCenter;
+        do {
+            newCenter = rr();
+        } while (!center.insert( newCenter ).second);
+        addCenter( newCenter, closestCenter );
+    }
+    // select some new centers greedily
+    for (int i = perturbStrength / 2; i > 0; i--) {
+        int fv = findFarthestVertex( closestCenter );
+        int newCenter = graph.findVertexWithinRadius( fv, closestCenter[fv].dist[0] );
+        center.insert( newCenter );
+        addCenter( newCenter, closestCenter );
+    }
+}
 
 
 
