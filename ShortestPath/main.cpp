@@ -69,7 +69,7 @@ int solve_pmed( int argc, char **argv, ofstream &csvFile )
         for (int i = 1; i <= runTime; i++) {
             PCenter<unsigned> pc( g, pNum, i * 20 * nodeNum );
 
-            pc.solve( i*nodeNum / 2, nodeNum / 2 );
+            pc.pertSolve( i*nodeNum / 2, nodeNum / 2 );
 
             pc.printResult( cout );
             if (!pc.check()) {
@@ -105,62 +105,70 @@ int solve_rl1323( ofstream &csvFile )
     const string fname( "rl1323.tsp" );
     const int nodeNum = 1323;
 
-    const int runTime = 4;
+    const int runTime = 2;
 
     GeometricalGraph gg( read_rl1323Instance( fname ) );
-    UndirectedGraph<Double> Dug( gg );
     UndirectedGraph<double> dug( gg );
+    UndirectedGraph<unsigned> uug( gg );
 
-    for (int pnum = 10; pnum <= 100; pnum += 10) {
+    for (int pnum = 40; pnum <= 100; pnum += 10) {
         // for each instance, run some times for judging average performance
-
         for (int i = 1; i <= runTime; i++) {
             ostringstream fn;
             fn << fname << '(' << pnum << ')';
-            {
-                PCenter<double> pc5( dug, pnum, i * 200000 );
-                pc5.solve( i*nodeNum / 2, nodeNum / 2 );
-                pc5.printResult( cout );
-                if (!pc5.check()) {
-                    csvFile << "[LogicError] ";
-                }
-                pc5.appendResultToSheet( fn.str(), csvFile );
-            }
-            {
-                PCenter<double> pc4( dug, pnum, i * 200000 );
-                pc4.pertSolve( i*nodeNum / 2, nodeNum / 2 );
-                pc4.printResult( cout );
-                if (!pc4.check( )) {
-                    csvFile << "[LogicError] ";
-                }
-                pc4.appendResultToSheet( fn.str( ), csvFile );
-            }
-            {
-                PCenter<double> pc3( dug, pnum, i * 200000 );
-                pc3.tabuSolve( i*nodeNum / 2, nodeNum / 2 );
-                pc3.printResult( cout );
-                if (!pc3.check()) {
-                    csvFile << "[LogicError] ";
-                }
-                pc3.appendResultToSheet( fn.str(), csvFile );
-            }
             //{
-            //    PCenter<Double> pc1( Dug, pnum, i * 200000 );
-            //    pc1.solve( i*nodeNum / 2, nodeNum / 2 );
-            //    pc1.printResult( cout );
-            //    if (!pc1.check()) {
+            //    PCenter<unsigned> pc( uug, pnum, i * 640000 );
+            //    pc.solve();
+            //    pc.printResult( cout );
+            //    if (!pc.check()) {
             //        csvFile << "[LogicError] ";
             //    }
-            //    pc1.appendResultToSheet( fn.str(), csvFile );
+            //    pc.appendResultToSheet( fn.str(), csvFile );
             //}
             //{
-            //    PCenter<Double> pc2( Dug, pnum, i * 200000 );
-            //    pc2.tabuSolve( i*nodeNum / 2, nodeNum / 2 );
-            //    pc2.printResult( cout );
-            //    if (!pc2.check()) {
+            //    PCenter<double> pc( dug, pnum, i * 640000 );
+            //    pc.solve( );
+            //    pc.printResult( cout );
+            //    if (!pc.check( )) {
             //        csvFile << "[LogicError] ";
             //    }
-            //    pc2.appendResultToSheet( fn.str(), csvFile );
+            //    pc.appendResultToSheet( fn.str( ), csvFile );
+            //}
+            {
+                PCenter<unsigned> pc( uug, pnum, i * 128000 );
+                pc.tabuSolve( i*nodeNum *pnum / 10, nodeNum / 2 );
+                pc.printResult( cout );
+                if (!pc.check()) {
+                    csvFile << "[LogicError] ";
+                }
+                pc.appendResultToSheet( fn.str(), csvFile );
+            }
+            {
+                PCenter<double> pc( dug, pnum, i * 128000 );
+                pc.tabuSolve( i*nodeNum *pnum / 10, nodeNum / 2 );
+                pc.printResult( cout );
+                if (!pc.check()) {
+                    csvFile << "[LogicError] ";
+                }
+                pc.appendResultToSheet( fn.str(), csvFile );
+            }
+            //{
+            //    PCenter<unsigned> pc( uug, pnum, i * 640000 );
+            //    pc.pertSolveR( i*nodeNum / 2, nodeNum / 2 );
+            //    pc.printResult( cout );
+            //    if (!pc.check( )) {
+            //        csvFile << "[LogicError] ";
+            //    }
+            //    pc.appendResultToSheet( fn.str( ), csvFile );
+            //}
+            //{
+            //    PCenter<double> pc( dug, pnum, i * 640000 );
+            //    pc.pertSolveR( i*nodeNum / 2, nodeNum / 2 );
+            //    pc.printResult( cout );
+            //    if (!pc.check( )) {
+            //        csvFile << "[LogicError] ";
+            //    }
+            //    pc.appendResultToSheet( fn.str( ), csvFile );
             //}
         }
     }

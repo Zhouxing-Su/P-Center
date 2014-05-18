@@ -41,7 +41,8 @@ public:
     PCenter( UndirectedGraph<T_DIST> &ug, unsigned pnum, int maxIterCount );
     ~PCenter();
 
-    void solve( int tabuTenureBase, int tabuTenureAmplitude );
+    void solve();
+    void pertSolveR( int tabuTenureBase, int tabuTenureAmplitude );
     void pertSolve( int tabuTenureBase, int tabuTenureAmplitude );
     void tabuSolve( int tabuTenureBase, int tabuTenureAmplitude );
     void basicSolve();
@@ -50,7 +51,7 @@ public:
 
     void printResult( std::ostream &os ) const;
     static void initResultSheet( std::ofstream &csvFile );
-    void appendResultToSheet( const std::string &instanceFileName, std::ofstream &csvFile ) const;
+    void appendResultToSheet( const std::string &instanceFileName, std::ofstream &csvFile, bool isMultiplied = false ) const;
 
 private:
     class CenterSwap
@@ -81,6 +82,8 @@ private:
 
     typedef std::vector<ClosestCenterQueue> ClosestCenterTable;
     typedef std::vector< std::vector<int> > TabuTable;
+    typedef std::vector<int> SwapInTabuTable;
+    typedef std::vector<int> SwapInCount;
 
     class TabuTenureCalculator
     {
@@ -130,6 +133,12 @@ private:
         int punishment;
         RangeRand rr;
     };
+    // let the long existing centers and frequently swapped centers can not be swapped in for longer time
+    // inTabu[oldCenter] should be set to the iterCount at the last swap-in of the oldCenter
+    int getSwapInTabuTenure( int iterCount, int oldCenter )
+    {
+        return iterCount + (iterCount - inTabu[oldCenter])*inCount[oldCenter];
+    }
 
     void genInitSolution();
     void initClosestCenter( int firstCenter, int secondCenter );
@@ -159,6 +168,8 @@ private:
     ClosestCenterTable closestCenter;
 
     TabuTable tabu;
+    SwapInTabuTable inTabu;
+    SwapInCount inCount;
 
     int maxIterCount;
     Solution bestSolution;
@@ -182,7 +193,8 @@ using namespace std;
 template <typename T_DIST>
 PCenter<T_DIST>::PCenter( UndirectedGraph<T_DIST> &ug, unsigned pn, int mic )
 : pnum( pn ), graph( ug ), closestCenter( ug.vertexAllocNum, ClosestCenterQueue() ),
-tabu( ug.vertexAllocNum, vector<int>( ug.vertexAllocNum, 0 ) ), maxIterCount( mic )
+tabu( ug.vertexAllocNum, vector<int>( ug.vertexAllocNum, 0 ) ), maxIterCount( mic ),
+inTabu( ug.vertexAllocNum, 0 ), inCount( ug.vertexAllocNum, 0 )
 {
     graph.getDistSeqTable();
 }
@@ -194,14 +206,118 @@ PCenter<T_DIST>::~PCenter()
 }
 
 template <typename T_DIST>
-void PCenter<T_DIST>::solve( int tabuTenureBase, int tabuTenureAmplitude )
+void PCenter<T_DIST>::solve()
 {
     ostringstream ss;
-    ss << '[' << typeid(T_DIST).name() << ']' << "perturb(RRRA)+tabu search(B=" << tabuTenureBase << "&A=" << tabuTenureAmplitude << ')';
+    ss << '[' << typeid(T_DIST).name() << ']' << "perturb(RRRA)+SwapIn tabu";
+    solvingAlgorithm = ss.str();
+
+    unsigned noImproveCount = 0;
+
+    std::ofstream swapLog( "swap[" + Timer::getLocalTimeNO() + "].log" );
+
+    genInitSolution();
+
+    RandSelect rs( 2 );
+    for (int iterCount = 0; iterCount < maxIterCount; iterCount++) {
+        bool isSwaped = false;
+        CenterSwap centerSwap;
+        TopologicalGraph<T_DIST>::Distance minRadius = TopologicalGraph<T_DIST>::MAX_DISTANCE;
+
+        TopologicalGraph<T_DIST>::Arc longestServeArc = findLongestServeArc( closestCenter );
+
+        int longestEnd = longestServeArc.endVertex;
+        TopologicalGraph<T_DIST>::Distance longestDist = longestServeArc.dist;
+        // try each vertex whose distance to longestEnd is shorter than longestDist
+        for (int i = graph.minVertexIndex; i <= graph.maxVertexIndex; i++) {
+            int newCenter = graph.nthClosestVertex( longestEnd, i );
+            if (graph.distance( longestEnd, newCenter ) < longestDist) {
+                // find the best swap between center i and non-center vertices
+                ClosestCenterTable tmpCCT( closestCenter );
+                addCenter( newCenter, tmpCCT );
+                TopologicalGraph<T_DIST>::Distance radiusAfterAdd = tmpCCT[findFarthestVertex( tmpCCT )].dist[0];
+                // calculate new radius for removing each center except the newly added one
+                for (TopologicalGraph<T_DIST>::VertexSet::iterator iter = center.begin(); iter != center.end(); iter++) {
+                    // when *iter is removed
+                    int removedCenter = *iter;
+                    TopologicalGraph<T_DIST>::Distance radiusAfterRemove = radiusAfterAdd;
+                    for (int k = graph.minVertexIndex; k <= graph.maxVertexIndex; k++) {
+                        if (tmpCCT[k].center[0] == removedCenter) {
+                            TopologicalGraph<T_DIST>::Distance newDist = tmpCCT[k].dist[1];
+                            if (radiusAfterRemove < newDist) {
+                                radiusAfterRemove = newDist;
+                            }
+                        }
+                    }
+                    // check if the swap between the candidate and the old is better
+                    if (radiusAfterRemove < minRadius) {
+                        if (radiusAfterRemove < bestSolution.serveRadius
+                            || iterCount > inTabu[newCenter]) {
+                            centerSwap = CenterSwap( removedCenter, newCenter );
+                            minRadius = radiusAfterRemove;
+                            rs.reset( 2 );
+                            isSwaped = true;
+                        }
+                    } else if (radiusAfterRemove == minRadius) {
+                        if (radiusAfterRemove < bestSolution.serveRadius
+                            || iterCount > inTabu[newCenter]) {
+                            if (rs.isSelected()) {
+                                centerSwap = CenterSwap( removedCenter, newCenter );
+                                isSwaped = true;
+                            }
+                        }
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        if (!isSwaped || noImproveCount > (pnum * graph.vertexNum / 2)) {    // "Random Remove, Random Add" perturbation
+            perturbRRRA( pnum / 4 );
+            minRadius = closestCenter[findFarthestVertex( closestCenter )].dist[0];
+            noImproveCount = 0;
+        } else {    // commit the swap
+            center.erase( centerSwap.oldCenter );
+            center.insert( centerSwap.newCenter );
+            addCenter( centerSwap.newCenter, closestCenter );
+            removeCenter( centerSwap.oldCenter );
+        }
+        // record if it is the best solution
+        if (minRadius < bestSolution.serveRadius) {
+            timer.record();
+            bestSolution.duration = timer.getDuration();
+            bestSolution.iterCount = iterCount;
+            bestSolution.serveRadius = minRadius;
+            bestSolution.center = center;
+            noImproveCount = 0;
+        } else {
+            ++noImproveCount;
+        }
+        // update tabu
+        if (isSwaped) {
+            inCount[centerSwap.newCenter]++;
+            inTabu[centerSwap.newCenter] = iterCount;
+            inTabu[centerSwap.oldCenter] = getSwapInTabuTenure( iterCount, centerSwap.oldCenter );
+
+            swapLog << centerSwap.newCenter << ',' << centerSwap.oldCenter << std::endl;
+        }
+    }
+
+    swapLog.close( );
+}
+
+template <typename T_DIST>
+void PCenter<T_DIST>::pertSolveR( int tabuTenureBase, int tabuTenureAmplitude )
+{
+    ostringstream ss;
+    ss << '[' << typeid(T_DIST).name() << ']' << "perturb(RRGA)+tabu search(B=" << tabuTenureBase << "&A=" << tabuTenureAmplitude << ')';
     solvingAlgorithm = ss.str();
 
     TabuTenureCalculator getTabuTenure( tabuTenureBase, tabuTenureAmplitude );
     unsigned noImproveCount = 0;
+
+    std::ofstream swapLog( "swap[" + Timer::getLocalTimeNO( ) + "].log" );
 
     genInitSolution();
 
@@ -246,9 +362,9 @@ void PCenter<T_DIST>::solve( int tabuTenureBase, int tabuTenureAmplitude )
                             isSwaped = true;
                         }
                     } else if (radiusAfterRemove == minRadius) {
-                        if (rs.isSelected()) {
-                            if (radiusAfterRemove < bestSolution.serveRadius
-                                || iterCount > tabu[removedCenter][newCenter]) {
+                        if (radiusAfterRemove < bestSolution.serveRadius
+                            || iterCount > tabu[removedCenter][newCenter]) {
+                            if (rs.isSelected()) {
                                 centerSwap = CenterSwap( removedCenter, newCenter );
                                 isSwaped = true;
                             }
@@ -285,8 +401,12 @@ void PCenter<T_DIST>::solve( int tabuTenureBase, int tabuTenureAmplitude )
         // update tabu
         if (isSwaped) {
             tabu[centerSwap.oldCenter][centerSwap.newCenter] = getTabuTenure( iterCount, (noImproveCount == 0) );
+
+            swapLog << centerSwap.newCenter << ',' << centerSwap.oldCenter << std::endl;
         }
     }
+
+    swapLog.close( );
 }
 
 template <typename T_DIST>
@@ -298,6 +418,8 @@ void PCenter<T_DIST>::pertSolve( int tabuTenureBase, int tabuTenureAmplitude )
 
     TabuTenureCalculator getTabuTenure( tabuTenureBase, tabuTenureAmplitude );
     unsigned noImproveCount = 0;
+
+    std::ofstream swapLog( "swap[" + Timer::getLocalTimeNO( ) + "].log" );
 
     genInitSolution();
 
@@ -342,9 +464,9 @@ void PCenter<T_DIST>::pertSolve( int tabuTenureBase, int tabuTenureAmplitude )
                             isSwaped = true;
                         }
                     } else if (radiusAfterRemove == minRadius) {
-                        if (rs.isSelected()) {
-                            if (radiusAfterRemove < bestSolution.serveRadius
-                                || iterCount > tabu[removedCenter][newCenter]) {
+                        if (radiusAfterRemove < bestSolution.serveRadius
+                            || iterCount > tabu[removedCenter][newCenter]) {
+                            if (rs.isSelected()) {
                                 centerSwap = CenterSwap( removedCenter, newCenter );
                                 isSwaped = true;
                             }
@@ -381,8 +503,12 @@ void PCenter<T_DIST>::pertSolve( int tabuTenureBase, int tabuTenureAmplitude )
         // update tabu
         if (isSwaped) {
             tabu[centerSwap.oldCenter][centerSwap.newCenter] = getTabuTenure( iterCount, (noImproveCount == 0) );
+
+            swapLog << centerSwap.newCenter << ',' << centerSwap.oldCenter << std::endl;
         }
     }
+
+    swapLog.close();
 }
 
 template <typename T_DIST>
@@ -390,7 +516,9 @@ void PCenter<T_DIST>::tabuSolve( int tabuTenureBase, int tabuTenureAmplitude )
 {
     ostringstream ss;
     ss << '[' << typeid(T_DIST).name() << ']' << "tabu search(B=" << tabuTenureBase << "&A=" << tabuTenureAmplitude << ')';
-    solvingAlgorithm = ss.str();
+    solvingAlgorithm = ss.str( );
+
+    std::ofstream swapLog( "swap[" + Timer::getLocalTimeNO( ) + "].log" );
 
     TabuTenureCalculator getTabuTenure( tabuTenureBase, tabuTenureAmplitude );
     genInitSolution();
@@ -436,9 +564,9 @@ void PCenter<T_DIST>::tabuSolve( int tabuTenureBase, int tabuTenureAmplitude )
                             isSwaped = true;
                         }
                     } else if (radiusAfterRemove == minRadius) {
-                        if (rs.isSelected()) {
-                            if (radiusAfterRemove < bestSolution.serveRadius
-                                || iterCount > tabu[removedCenter][newCenter]) {
+                        if (radiusAfterRemove < bestSolution.serveRadius
+                            || iterCount > tabu[removedCenter][newCenter]) {
+                            if (rs.isSelected()) {
                                 centerSwap = CenterSwap( removedCenter, newCenter );
                                 isSwaped = true;
                             }
@@ -471,8 +599,12 @@ void PCenter<T_DIST>::tabuSolve( int tabuTenureBase, int tabuTenureAmplitude )
             tabu[centerSwap.oldCenter][centerSwap.newCenter] = getTabuTenure( iterCount, true );
         } else {
             tabu[centerSwap.oldCenter][centerSwap.newCenter] = getTabuTenure( iterCount, false );
+
+            swapLog << centerSwap.newCenter << ',' << centerSwap.oldCenter << std::endl;
         }
     }
+
+    swapLog.close( );
 }
 
 template <typename T_DIST>
@@ -638,7 +770,7 @@ bool PCenter<T_DIST>::check() const
 template <typename T_DIST>
 void PCenter<T_DIST>::printResult( ostream &os ) const
 {
-    os << bestSolution.serveRadius << endl;
+    os << bestSolution.serveRadius / (graph.multiplied() ? static_cast<double>(TopologicalGraph<>::MULTIPLICATION) : 1) << std::endl;
     //os << "The max serving radius is : " << bestSolution.serveRadius << endl;
     //os << "The indexes of the vertices which are chosed as centers are :\n";
     //for (TopologicalGraph<T_DIST>::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
@@ -650,18 +782,18 @@ void PCenter<T_DIST>::printResult( ostream &os ) const
 template <typename T_DIST>
 void PCenter<T_DIST>::initResultSheet( std::ofstream &csvFile )
 {
-    csvFile << "Date, Instance, Algorithm, TotalIter, Duration, IterCount, ServingRadius, Centers" << endl;
+    csvFile << "Date, Instance, Algorithm, TotalIter, Duration, IterCount, ServingRadius, Centers" << std::endl;
 }
 
 template <typename T_DIST>
-void PCenter<T_DIST>::appendResultToSheet( const string &instanceFileName, ofstream &csvFile ) const
+void PCenter<T_DIST>::appendResultToSheet( const string &instanceFileName, ofstream &csvFile, bool isMultiplied ) const
 {
     csvFile << Timer::getLocalTime() << ", " << solvingAlgorithm << ", " << instanceFileName << ", " << maxIterCount << ", "
-        << bestSolution.duration << ", " << bestSolution.iterCount << ", " << bestSolution.serveRadius << ", ";
+        << bestSolution.duration << ", " << bestSolution.iterCount << ", " << bestSolution.serveRadius / (graph.multiplied() ? static_cast<double>(TopologicalGraph<>::MULTIPLICATION) : 1) << ", ";
     for (TopologicalGraph<T_DIST>::VertexSet::iterator iter = bestSolution.center.begin(); iter != bestSolution.center.end(); iter++) {
         csvFile << *iter << "|";
     }
-    csvFile << endl;
+    csvFile << std::endl;
 }
 
 
