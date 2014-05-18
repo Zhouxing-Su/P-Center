@@ -1,0 +1,37 @@
+CPPutilibs
+==============================
+some utility classes written by cpp.
+
+
+
+
+USAGE
+==============================
+check the related header file to get the usage of the classes.
+check "Tester.cpp" for code example for using each class.
+
+
+CLASS LIST ( IMPLEMENTED )
+==============================
+[ Graph ] :
+DirectedGraph, UndirectedGraph
+matrix representation, ajacent table representation
+
+[ RandSelect ] :
+
+[ RangeRand ] :
+
+[ Timer ] :
+
+
+CLASS LIST ( IN THE PLAN )
+==============================
+[ Trie ] :
+
+[ SuffixTree ] :
+
+[ AVLTree ] :
+
+[ RedBlackTree ] :
+
+[ RationalNubmer ] :
